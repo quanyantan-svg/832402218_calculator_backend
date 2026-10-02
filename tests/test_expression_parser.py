@@ -218,7 +218,9 @@ def test_non_string_input_rejected() -> None:
     """Non-string direct service input must not leak a Python ``TypeError``."""
     for value in [None, 42, 3.14, [], {}, object()]:
         with pytest.raises(InvalidExpressionError):
-            _calculate(value)
+            # The parser's public signature is ``str``; the runtime
+            # isinstance check is what we are exercising here.
+            _calculate(value)  # type: ignore[arg-type]
 
 
 def test_expression_length_limit_constant_exposed() -> None:

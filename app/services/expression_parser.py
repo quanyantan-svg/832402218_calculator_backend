@@ -42,7 +42,7 @@ class _Token:
     position: int
 
 
-def parse_and_calculate(expression: object) -> Decimal:
+def parse_and_calculate(expression: str) -> Decimal:
     """Parse and evaluate ``expression``, returning the :class:`Decimal` result.
 
     The parser accepts the grammar documented in the module docstring and
