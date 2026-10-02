@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.orm import Session
 
 from app.database.database import get_db
-from app.schemas.history import HistoryItem, HistoryResponse
+from app.schemas.history import (
+    HistoryDeleteResponse,
+    HistoryItem,
+    HistoryResponse,
+)
 from app.services.history_service import HistoryService
 
 router = APIRouter(tags=["history"])
@@ -32,3 +36,20 @@ def list_history(db: Session = Depends(get_db)) -> HistoryResponse:
         for entry in entries
     ]
     return HistoryResponse(history=items)
+
+
+@router.delete(
+    "/history/{history_id}",
+    response_model=HistoryDeleteResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Delete a single history record by id.",
+    responses={status.HTTP_404_NOT_FOUND: {"description": "History record not found."}},
+)
+def delete_history(
+    history_id: int = Path(..., ge=1, description="Primary key of the history row."),
+    db: Session = Depends(get_db),
+) -> HistoryDeleteResponse:
+    """Delete the persisted history row identified by ``history_id``."""
+    service = HistoryService()
+    service.delete_history(db, history_id)
+    return HistoryDeleteResponse(message="History record deleted")

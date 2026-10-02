@@ -13,6 +13,8 @@ from app.api.routes.history import router as history_router
 from app.core.config import get_settings
 from app.core.exceptions import (
     DivisionByZeroError,
+    HistoryDeleteError,
+    HistoryNotFoundError,
     HistoryReadError,
     InvalidExpressionError,
     PersistenceError,
@@ -35,7 +37,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="0.3.0",
+        version="0.4.0",
         lifespan=lifespan,
     )
 
@@ -112,6 +114,30 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"success": False, "message": "Internal server error"},
+        )
+
+    @app.exception_handler(HistoryDeleteError)
+    async def _history_delete_error_handler(
+        request: Request, exc: HistoryDeleteError
+    ) -> JSONResponse:
+        logger.error(
+            "History delete failure on %s %s: %s",
+            request.method,
+            request.url.path,
+            exc.__class__.__name__,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "message": "Internal server error"},
+        )
+
+    @app.exception_handler(HistoryNotFoundError)
+    async def _history_not_found_handler(
+        request: Request, exc: HistoryNotFoundError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"success": False, "message": "History record not found"},
         )
 
     @app.exception_handler(RequestValidationError)

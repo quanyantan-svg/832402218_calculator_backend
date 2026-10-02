@@ -1,4 +1,4 @@
-"""Service layer for reading calculation history from storage."""
+"""Service layer for reading and deleting calculation history."""
 
 from __future__ import annotations
 
@@ -8,7 +8,11 @@ from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import HistoryReadError
+from app.core.exceptions import (
+    HistoryDeleteError,
+    HistoryNotFoundError,
+    HistoryReadError,
+)
 from app.models.calculation_history import CalculationHistory
 
 
@@ -23,7 +27,7 @@ class HistoryEntry:
 
 
 class HistoryService:
-    """Read-only query service for persisted calculation history."""
+    """Read and delete service for persisted calculation history."""
 
     def list_history(self, db: Session) -> list[HistoryEntry]:
         """Return all persisted history rows newest-first by primary key.
@@ -55,3 +59,41 @@ class HistoryService:
             )
             for row in rows
         ]
+
+    def delete_history(self, db: Session, history_id: int) -> None:
+        """Delete the history row with the given primary key.
+
+        The lookup runs before any delete. If the row is missing,
+        :class:`HistoryNotFoundError` is raised without touching the
+        session. If a database error occurs during lookup or delete,
+        the session is rolled back and :class:`HistoryDeleteError` is
+        raised.
+
+        Raises:
+            HistoryNotFoundError: When no row with ``history_id`` exists.
+                The session is not modified in this case.
+            HistoryDeleteError: When the database lookup or delete fails.
+                The session is rolled back before this exception
+                propagates.
+        """
+        try:
+            record = db.get(CalculationHistory, history_id)
+        except SQLAlchemyError as exc:
+            db.rollback()
+            raise HistoryDeleteError(
+                "failed to locate history record"
+            ) from exc
+
+        if record is None:
+            raise HistoryNotFoundError(
+                f"history record {history_id} not found"
+            )
+
+        try:
+            db.delete(record)
+            db.commit()
+        except SQLAlchemyError as exc:
+            db.rollback()
+            raise HistoryDeleteError(
+                "failed to delete history record"
+            ) from exc

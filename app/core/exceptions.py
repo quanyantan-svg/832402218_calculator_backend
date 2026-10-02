@@ -19,3 +19,11 @@ class PersistenceError(CalculatorError):
 
 class HistoryReadError(CalculatorError):
     """Raised when reading calculation history from storage fails."""
+
+
+class HistoryDeleteError(CalculatorError):
+    """Raised when deleting a history record fails at the storage layer."""
+
+
+class HistoryNotFoundError(CalculatorError):
+    """Raised when a requested history record does not exist."""

@@ -21,3 +21,10 @@ class HistoryResponse(BaseModel):
 
     success: bool = True
     history: list[HistoryItem]
+
+
+class HistoryDeleteResponse(BaseModel):
+    """Response body for ``DELETE /api/history/{history_id}``."""
+
+    success: bool = True
+    message: str

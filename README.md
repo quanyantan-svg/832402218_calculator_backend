@@ -57,7 +57,8 @@ endpoints are scheduled for a later phase.
 │   ├── test_calculator_service.py
 │   ├── test_calculate_api.py
 │   ├── test_history_service.py
-│   └── test_history_api.py
+│   ├── test_history_api.py
+│   └── test_history_delete_api.py
 ├── .env.example
 ├── .gitignore
 ├── codestyle.md
@@ -92,9 +93,10 @@ The Swagger UI is available at:
 
 The implemented endpoints:
 
-- `GET  http://127.0.0.1:8000/health`
-- `POST http://127.0.0.1:8000/api/calculate`
-- `GET  http://127.0.0.1:8000/api/history`
+- `GET    http://127.0.0.1:8000/health`
+- `POST   http://127.0.0.1:8000/api/calculate`
+- `GET    http://127.0.0.1:8000/api/history`
+- `DELETE http://127.0.0.1:8000/api/history/{history_id}`
 
 ## Expression Parser
 
@@ -251,6 +253,62 @@ Server-error response (`HTTP 500`) on a database read failure:
   are persisted in MySQL, not in application memory.
 - Invalid calculations are never stored, so they never appear in
   history.
+
+## History Deletion
+
+### `DELETE /api/history/{history_id}`
+
+The deletion endpoint removes a single history record from the backend
+database. The path parameter is the primary-key `id` returned by
+`GET /api/history`.
+
+Successful response (`HTTP 200 OK`):
+
+```
+{
+    "success": true,
+    "message": "History record deleted"
+}
+```
+
+Not-found response (`HTTP 404`):
+
+```
+{
+    "success": false,
+    "message": "History record not found"
+}
+```
+
+Database-error response (`HTTP 500`):
+
+```
+{
+    "success": false,
+    "message": "Internal server error"
+}
+```
+
+A non-integer path parameter (for example `/api/history/abc`) is
+rejected by FastAPI/Pydantic with a client-error response and a
+generic `"Invalid request"` body. Deletion is never performed on
+malformed input.
+
+### Behavior
+
+- The route looks up the row by primary key first. If the row is
+  missing, `404` is returned without touching the database write path.
+- When the row exists, the service issues `DELETE` and commits in the
+  same transaction. The API does not report success until the commit
+  succeeds. If the commit fails, the session is rolled back and the
+  response is a sanitized `500`.
+- Deletion is performed against MySQL and remains effective after the
+  client refreshes or restarts — the deleted record stays absent from
+  subsequent `GET /api/history` responses because it is no longer in
+  the database.
+- Deletion removes only the specified row. Other rows are untouched.
+- There is intentionally no clear-all or batch-delete endpoint in this
+  phase.
 
 ## Database
 
