@@ -4,8 +4,9 @@ Backend service for the Front-End and Back-End Separation Calculator System.
 
 This repository provides the FastAPI application skeleton, the MySQL
 connection layer, the safe mathematical expression parser, the
-calculation API, and the calculation history API. History-deletion
-endpoints are scheduled for a later phase.
+calculation API, and the calculation history API. The backend
+currently supports safe expression calculation, MySQL persistence,
+history retrieval, and deletion of an individual history record.
 
 ## Tech Stack
 
