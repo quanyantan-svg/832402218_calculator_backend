@@ -14,11 +14,15 @@ A ``NUMBER`` is a non-negative decimal literal that supports forms such as
 
 from __future__ import annotations
 
+import decimal
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 
 from app.core.exceptions import DivisionByZeroError, InvalidExpressionError
+
+
+MAX_EXPRESSION_LENGTH = 1024
 
 
 class _TokenKind(str, Enum):
@@ -38,22 +42,35 @@ class _Token:
     position: int
 
 
-def parse_and_calculate(expression: str) -> Decimal:
+def parse_and_calculate(expression: object) -> Decimal:
     """Parse and evaluate ``expression``, returning the :class:`Decimal` result.
 
     The parser accepts the grammar documented in the module docstring and
     raises :class:`InvalidExpressionError` or :class:`DivisionByZeroError`
     on bad input. The full input is consumed; trailing garbage is rejected.
+
+    Non-string input is rejected with :class:`InvalidExpressionError` rather
+    than leaking a Python ``TypeError``.
     """
-    if expression is None:
-        raise InvalidExpressionError("expression must not be None")
+    if not isinstance(expression, str):
+        raise InvalidExpressionError(
+            f"expression must be a string, got {type(expression).__name__}"
+        )
+    if len(expression) > MAX_EXPRESSION_LENGTH:
+        raise InvalidExpressionError(
+            f"expression exceeds maximum length of {MAX_EXPRESSION_LENGTH}"
+        )
 
     tokens = _tokenize(expression)
     if not tokens:
         raise InvalidExpressionError("empty expression")
 
     parser = _Parser(tokens)
-    result = parser._expression()
+    try:
+        result = parser._expression()
+    except RecursionError as exc:
+        raise InvalidExpressionError("expression is too deeply nested") from exc
+
     if parser._peek() is not None:
         trailing = parser._peek()
         raise InvalidExpressionError(
@@ -121,7 +138,7 @@ def _tokenize(text: str) -> list[_Token]:
             literal = text[i:j]
             try:
                 value = Decimal(literal)
-            except Exception as exc:
+            except decimal.InvalidOperation as exc:
                 raise InvalidExpressionError(
                     f"invalid number literal {literal!r}"
                 ) from exc
@@ -184,10 +201,7 @@ class _Parser:
             else:
                 if right == 0:
                     raise DivisionByZeroError("division by zero")
-                try:
-                    left = left / right
-                except Exception as exc:
-                    raise DivisionByZeroError("division by zero") from exc
+                left = left / right
 
     def _unary(self) -> Decimal:
         """``unary = ("+" | "-") unary | primary``"""

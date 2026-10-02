@@ -2,10 +2,10 @@
 
 Backend service for the Front-End and Back-End Separation Calculator System.
 
-This repository currently provides the FastAPI application skeleton and the
-MySQL connection layer. The expression parser and the
-`/api/calculate`, `/api/history`, and `/api/history/{id}` endpoints will be
-added in later steps.
+This repository provides the FastAPI application skeleton, the MySQL
+connection layer, and the safe mathematical expression parser that powers
+calculation. The `/api/calculate`, `/api/history`, and `/api/history/{id}`
+endpoints are scheduled for a later phase.
 
 ## Tech Stack
 
@@ -26,7 +26,8 @@ added in later steps.
 │   ├── main.py
 │   ├── core/
 │   │   ├── __init__.py
-│   │   └── config.py
+│   │   ├── config.py
+│   │   └── exceptions.py
 │   ├── database/
 │   │   ├── __init__.py
 │   │   └── database.py
@@ -36,13 +37,15 @@ added in later steps.
 │   ├── schemas/
 │   │   └── __init__.py
 │   ├── services/
-│   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   └── expression_parser.py
 │   └── api/
 │       ├── __init__.py
 │       └── routes/
 │           └── __init__.py
 ├── tests/
-│   └── __init__.py
+│   ├── __init__.py
+│   └── test_expression_parser.py
 ├── .env.example
 ├── .gitignore
 ├── codestyle.md
@@ -79,6 +82,49 @@ The health endpoint:
 
 - http://127.0.0.1:8000/health
 
+## Expression Parser
+
+The calculator uses a safe recursive-descent parser implemented in
+`app/services/expression_parser.py`. It accepts the grammar:
+
+```
+expression = term (("+" | "-") term)*
+term       = unary (("*" | "/") unary)*
+unary      = ("+" | "-") unary | primary
+primary    = NUMBER | "(" expression ")"
+```
+
+A `NUMBER` is a non-negative decimal literal in forms such as `0`, `123`,
+`3.14`, `.5`, and `5.`.
+
+### Supported Features
+
+- The four basic arithmetic operators: `+`, `-`, `*`, `/`.
+- Standard operator precedence (`*` and `/` bind tighter than `+` and `-`)
+  with left-associativity.
+- Parentheses, including nested parentheses.
+- Unary `+` and `-`, including chained forms like `--5` and `-(1+2)`.
+- Arbitrary whitespace between tokens.
+
+### Arithmetic
+
+All arithmetic uses `decimal.Decimal` so values such as `0.1 + 0.2` are
+computed as exactly `0.3` rather than through floating-point.
+
+### Safety
+
+The parser does not use `eval`, `exec`, `compile`, or any equivalent
+mechanism. The full grammar is hand-written and only accepts the
+non-terminals listed above. Any input that does not match the grammar is
+rejected as `InvalidExpressionError`. Division by zero raises
+`DivisionByZeroError`. Both exceptions subclass `CalculatorError`.
+
+The parser enforces a maximum input length of `MAX_EXPRESSION_LENGTH = 1024`
+characters, matching the width of the `calculation_history.expression`
+column. Inputs longer than the limit, deeply nested expressions, and
+non-string inputs are all rejected with `InvalidExpressionError` so that no
+internal Python exception leaks to the API layer.
+
 ## Database
 
 The MySQL schema is created on application startup via
@@ -89,13 +135,13 @@ The MySQL schema is created on application startup via
 | column       | type           | notes                          |
 |--------------|----------------|--------------------------------|
 | id           | INT            | PK, auto increment             |
-| expression   | VARCHAR(1024)  | NOT NULL                       |
+| expression   | VARCHAR(1024)  | NOT NULL                        |
 | result       | VARCHAR(1024)  | NOT NULL, stored as text       |
 | created_at   | DATETIME       | NOT NULL, server-side default  |
 
-The `result` column is stored as text so that values can be represented in a
-form that avoids avoidable floating-point display problems (for example
-`"0.1 + 0.2"` style canonical forms or arbitrary-precision decimals).
+The `result` column is stored as text. Calculated values such as `0.1 +
+0.2` are stored in their canonical decimal form (for example `"0.3"`), not
+as the original expression.
 
 ## CORS
 
@@ -110,3 +156,18 @@ The local Vue / Vite development origins are allowed:
 response reports the application name, environment, and whether the
 database is reachable. Database credentials and connection details are
 never exposed in the response body.
+
+## Testing
+
+Run the full test suite:
+
+```
+pytest -v
+```
+
+Parser-specific tests live in `tests/test_expression_parser.py` and can be
+run directly:
+
+```
+pytest -v tests/test_expression_parser.py
+```

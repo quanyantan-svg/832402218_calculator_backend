@@ -1,0 +1,486 @@
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/services/expression_parser.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'codestyle.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'requirements.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_expression_parser.py', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/README.md b/README.md[m
+[1mindex f29b325..9a365a2 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -2,10 +2,10 @@[m
+ [m
+ Backend service for the Front-End and Back-End Separation Calculator System.[m
+ [m
+[31m-This repository currently provides the FastAPI application skeleton and the[m
+[31m-MySQL connection layer. The expression parser and the[m
+[31m-`/api/calculate`, `/api/history`, and `/api/history/{id}` endpoints will be[m
+[31m-added in later steps.[m
+[32m+[m[32mThis repository provides the FastAPI application skeleton, the MySQL[m
+[32m+[m[32mconnection layer, and the safe mathematical expression parser that powers[m
+[32m+[m[32mcalculation. The `/api/calculate`, `/api/history`, and `/api/history/{id}`[m
+[32m+[m[32mendpoints are scheduled for a later phase.[m
+ [m
+ ## Tech Stack[m
+ [m
+[36m@@ -26,7 +26,8 @@[m [madded in later steps.[m
+ │   ├── main.py[m
+ │   ├── core/[m
+ │   │   ├── __init__.py[m
+[31m-│   │   └── config.py[m
+[32m+[m[32m│   │   ├── config.py[m
+[32m+[m[32m│   │   └── exceptions.py[m
+ │   ├── database/[m
+ │   │   ├── __init__.py[m
+ │   │   └── database.py[m
+[36m@@ -36,13 +37,15 @@[m [madded in later steps.[m
+ │   ├── schemas/[m
+ │   │   └── __init__.py[m
+ │   ├── services/[m
+[31m-│   │   └── __init__.py[m
+[32m+[m[32m│   │   ├── __init__.py[m
+[32m+[m[32m│   │   └── expression_parser.py[m
+ │   └── api/[m
+ │       ├── __init__.py[m
+ │       └── routes/[m
+ │           └── __init__.py[m
+ ├── tests/[m
+[31m-│   └── __init__.py[m
+[32m+[m[32m│   ├── __init__.py[m
+[32m+[m[32m│   └── test_expression_parser.py[m
+ ├── .env.example[m
+ ├── .gitignore[m
+ ├── codestyle.md[m
+[36m@@ -79,6 +82,49 @@[m [mThe health endpoint:[m
+ [m
+ - http://127.0.0.1:8000/health[m
+ [m
+[32m+[m[32m## Expression Parser[m
+[32m+[m
+[32m+[m[32mThe calculator uses a safe recursive-descent parser implemented in[m
+[32m+[m[32m`app/services/expression_parser.py`. It accepts the grammar:[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mexpression = term (("+" | "-") term)*[m
+[32m+[m[32mterm       = unary (("*" | "/") unary)*[m
+[32m+[m[32munary      = ("+" | "-") unary | primary[m
+[32m+[m[32mprimary    = NUMBER | "(" expression ")"[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mA `NUMBER` is a non-negative decimal literal in forms such as `0`, `123`,[m
+[32m+[m[32m`3.14`, `.5`, and `5.`.[m
+[32m+[m
+[32m+[m[32m### Supported Features[m
+[32m+[m
+[32m+[m[32m- The four basic arithmetic operators: `+`, `-`, `*`, `/`.[m
+[32m+[m[32m- Standard operator precedence (`*` and `/` bind tighter than `+` and `-`)[m
+[32m+[m[32m  with left-associativity.[m
+[32m+[m[32m- Parentheses, including nested parentheses.[m
+[32m+[m[32m- Unary `+` and `-`, including chained forms like `--5` and `-(1+2)`.[m
+[32m+[m[32m- Arbitrary whitespace between tokens.[m
+[32m+[m
+[32m+[m[32m### Arithmetic[m
+[32m+[m
+[32m+[m[32mAll arithmetic uses `decimal.Decimal` so values such as `0.1 + 0.2` are[m
+[32m+[m[32mcomputed as exactly `0.3` rather than through floating-point.[m
+[32m+[m
+[32m+[m[32m### Safety[m
+[32m+[m
+[32m+[m[32mThe parser does not use `eval`, `exec`, `compile`, or any equivalent[m
+[32m+[m[32mmechanism. The full grammar is hand-written and only accepts the[m
+[32m+[m[32mnon-terminals listed above. Any input that does not match the grammar is[m
+[32m+[m[32mrejected as `InvalidExpressionError`. Division by zero raises[m
+[32m+[m[32m`DivisionByZeroError`. Both exceptions subclass `CalculatorError`.[m
+[32m+[m
+[32m+[m[32mThe parser enforces a maximum input length of `MAX_EXPRESSION_LENGTH = 1024`[m
+[32m+[m[32mcharacters, matching the width of the `calculation_history.expression`[m
+[32m+[m[32mcolumn. Inputs longer than the limit, deeply nested expressions, and[m
+[32m+[m[32mnon-string inputs are all rejected with `InvalidExpressionError` so that no[m
+[32m+[m[32minternal Python exception leaks to the API layer.[m
+[32m+[m
+ ## Database[m
+ [m
+ The MySQL schema is created on application startup via[m
+[36m@@ -89,13 +135,13 @@[m [mThe MySQL schema is created on application startup via[m
+ | column       | type           | notes                          |[m
+ |--------------|----------------|--------------------------------|[m
+ | id           | INT            | PK, auto increment             |[m
+[31m-| expression   | VARCHAR(1024)  | NOT NULL                       |[m
+[32m+[m[32m| expression   | VARCHAR(1024)  | NOT NULL                        |[m
+ | result       | VARCHAR(1024)  | NOT NULL, stored as text       |[m
+ | created_at   | DATETIME       | NOT NULL, server-side default  |[m
+ [m
+[31m-The `result` column is stored as text so that values can be represented in a[m
+[31m-form that avoids avoidable floating-point display problems (for example[m
+[31m-`"0.1 + 0.2"` style canonical forms or arbitrary-precision decimals).[m
+[32m+[m[32mThe `result` column is stored as text. Calculated values such as `0.1 +[m
+[32m+[m[32m0.2` are stored in their canonical decimal form (for example `"0.3"`), not[m
+[32m+[m[32mas the original expression.[m
+ [m
+ ## CORS[m
+ [m
+[36m@@ -110,3 +156,18 @@[m [mThe local Vue / Vite development origins are allowed:[m
+ response reports the application name, environment, and whether the[m
+ database is reachable. Database credentials and connection details are[m
+ never exposed in the response body.[m
+[32m+[m
+[32m+[m[32m## Testing[m
+[32m+[m
+[32m+[m[32mRun the full test suite:[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mpytest -v[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mParser-specific tests live in `tests/test_expression_parser.py` and can be[m
+[32m+[m[32mrun directly:[m
+[32m+[m
+[32m+[m[32m```[m
+[32m+[m[32mpytest -v tests/test_expression_parser.py[m
+[32m+[m[32m```[m
+[1mdiff --git a/app/services/expression_parser.py b/app/services/expression_parser.py[m
+[1mindex 883be2e..e39fcd1 100644[m
+[1m--- a/app/services/expression_parser.py[m
+[1m+++ b/app/services/expression_parser.py[m
+[36m@@ -14,6 +14,7 @@[m [mA ``NUMBER`` is a non-negative decimal literal that supports forms such as[m
+ [m
+ from __future__ import annotations[m
+ [m
+[32m+[m[32mimport decimal[m
+ from dataclasses import dataclass[m
+ from decimal import Decimal[m
+ from enum import Enum[m
+[36m@@ -21,6 +22,9 @@[m [mfrom enum import Enum[m
+ from app.core.exceptions import DivisionByZeroError, InvalidExpressionError[m
+ [m
+ [m
+[32m+[m[32mMAX_EXPRESSION_LENGTH = 1024[m
+[32m+[m
+[32m+[m
+ class _TokenKind(str, Enum):[m
+     NUMBER = "NUMBER"[m
+     PLUS = "PLUS"[m
+[36m@@ -38,22 +42,35 @@[m [mclass _Token:[m
+     position: int[m
+ [m
+ [m
+[31m-def parse_and_calculate(expression: str) -> Decimal:[m
+[32m+[m[32mdef parse_and_calculate(expression: object) -> Decimal:[m
+     """Parse and evaluate ``expression``, returning the :class:`Decimal` result.[m
+ [m
+     The parser accepts the grammar documented in the module docstring and[m
+     raises :class:`InvalidExpressionError` or :class:`DivisionByZeroError`[m
+     on bad input. The full input is consumed; trailing garbage is rejected.[m
+[32m+[m
+[32m+[m[32m    Non-string input is rejected with :class:`InvalidExpressionError` rather[m
+[32m+[m[32m    than leaking a Python ``TypeError``.[m
+     """[m
+[31m-    if expression is None:[m
+[31m-        raise InvalidExpressionError("expression must not be None")[m
+[32m+[m[32m    if not isinstance(expression, str):[m
+[32m+[m[32m        raise InvalidExpressionError([m
+[32m+[m[32m            f"expression must be a string, got {type(expression).__name__}"[m
+[32m+[m[32m        )[m
+[32m+[m[32m    if len(expression) > MAX_EXPRESSION_LENGTH:[m
+[32m+[m[32m        raise InvalidExpressionError([m
+[32m+[m[32m            f"expression exceeds maximum length of {MAX_EXPRESSION_LENGTH}"[m
+[32m+[m[32m        )[m
+ [m
+     tokens = _tokenize(expression)[m
+     if not tokens:[m
+         raise InvalidExpressionError("empty expression")[m
+ [m
+     parser = _Parser(tokens)[m
+[31m-    result = parser._expression()[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        result = parser._expression()[m
+[32m+[m[32m    except RecursionError as exc:[m
+[32m+[m[32m        raise InvalidExpressionError("expression is too deeply nested") from exc[m
+[32m+[m
+     if parser._peek() is not None:[m
+         trailing = parser._peek()[m
+         raise InvalidExpressionError([m
+[36m@@ -121,7 +138,7 @@[m [mdef _tokenize(text: str) -> list[_Token]:[m
+             literal = text[i:j][m
+             try:[m
+                 value = Decimal(literal)[m
+[31m-            except Exception as exc:[m
+[32m+[m[32m            except decimal.InvalidOperation as exc:[m
+                 raise InvalidExpressionError([m
+                     f"invalid number literal {literal!r}"[m
+                 ) from exc[m
+[36m@@ -184,10 +201,7 @@[m [mclass _Parser:[m
+             else:[m
+                 if right == 0:[m
+                     raise DivisionByZeroError("division by zero")[m
+[31m-                try:[m
+[31m-                    left = left / right[m
+[31m-                except Exception as exc:[m
+[31m-                    raise DivisionByZeroError("division by zero") from exc[m
+[32m+[m[32m                left = left / right[m
+ [m
+     def _unary(self) -> Decimal:[m
+         """``unary = ("+" | "-") unary | primary``"""[m
+[1mdiff --git a/codestyle.md b/codestyle.md[m
+[1mindex 2227212..8ac554f 100644[m
+[1m--- a/codestyle.md[m
+[1m+++ b/codestyle.md[m
+[36m@@ -1,11 +1,22 @@[m
+ # Code Style[m
+ [m
+[31m-This project follows PEP 8 with the conventions listed below.[m
+[32m+[m[32mThe backend code standard is based on:[m
+[32m+[m
+[32m+[m[32m**PEP 8 — Style Guide for Python Code**[m
+[32m+[m
+[32m+[m[32mSource: https://peps.python.org/pep-0008/[m
+[32m+[m
+[32m+[m[32mThis document lists the conventions used in this project. Where a project[m
+[32m+[m[32mconvention intentionally deviates from the PEP 8 default (for example the[m
+[32m+[m[32m100-character line length described below), it is noted as such and is[m
+[32m+[m[32mnot a redefinition of the standard itself.[m
+ [m
+ ## Formatting[m
+ [m
+ - 4 spaces per indentation level, no tabs.[m
+[31m-- Maximum line length of 100 characters where reasonable.[m
+[32m+[m[32m- Maximum line length of **100 characters**. This is a practical project[m
+[32m+[m[32m  convention that is more permissive than the PEP 8 default of 79; it is[m
+[32m+[m[32m  not the PEP 8 default.[m
+ - One statement per line.[m
+ - Two blank lines between top-level definitions, one blank line between[m
+   methods inside a class.[m
+[36m@@ -34,6 +45,10 @@[m [mThis project follows PEP 8 with the conventions listed below.[m
+ - Logging is done through the `logging` module, not `print`.[m
+ - Sensitive values such as database passwords are never logged or[m
+   returned in HTTP responses.[m
+[32m+[m[32m- Domain-level errors are raised through dedicated exception types in[m
+[32m+[m[32m  `app/core/exceptions.py` so that no internal Python exception type[m
+[32m+[m[32m  (such as `TypeError`, `RecursionError`, or `decimal.InvalidOperation`)[m
+[32m+[m[32m  leaks to API callers.[m
+ [m
+ ## Docstrings[m
+ [m
+[1mdiff --git a/requirements.txt b/requirements.txt[m
+[1mindex 20692a7..a1d5e9b 100644[m
+Binary files a/requirements.txt and b/requirements.txt differ
+[1mdiff --git a/tests/test_expression_parser.py b/tests/test_expression_parser.py[m
+[1mindex c51a208..acae890 100644[m
+[1m--- a/tests/test_expression_parser.py[m
+[1m+++ b/tests/test_expression_parser.py[m
+[36m@@ -9,10 +9,13 @@[m [mfrom app.core.exceptions import ([m
+     DivisionByZeroError,[m
+     InvalidExpressionError,[m
+ )[m
+[31m-from app.services.expression_parser import parse_and_calculate[m
+[32m+[m[32mfrom app.services.expression_parser import ([m
+[32m+[m[32m    MAX_EXPRESSION_LENGTH,[m
+[32m+[m[32m    parse_and_calculate,[m
+[32m+[m[32m)[m
+ [m
+ [m
+[31m-def _eval(expression: str) -> Decimal:[m
+[32m+[m[32mdef _calculate(expression):[m
+     """Convenience wrapper that calls the parser and returns the result."""[m
+     return parse_and_calculate(expression)[m
+ [m
+[36m@@ -24,12 +27,11 @@[m [mdef _eval(expression: str) -> Decimal:[m
+         ("5-8", Decimal("-3")),[m
+         ("4*3", Decimal("12")),[m
+         ("8/2", Decimal("4")),[m
+[31m-        ("10-3", Decimal("7")),[m
+         ("0+0", Decimal("0")),[m
+     ],[m
+ )[m
+ def test_basic_arithmetic(expression: str, expected: Decimal) -> None:[m
+[31m-    assert _eval(expression) == expected[m
+[32m+[m[32m    assert _calculate(expression) == expected[m
+ [m
+ [m
+ @pytest.mark.parametrize([m
+[36m@@ -38,12 +40,11 @@[m [mdef test_basic_arithmetic(expression: str, expected: Decimal) -> None:[m
+         ("1+2*3", Decimal("7")),[m
+         ("8-3*2", Decimal("2")),[m
+         ("10/2+7", Decimal("12")),[m
+[31m-        ("2+3*4-5", Decimal("9")),[m
+         ("1*2+3*4", Decimal("14")),[m
+     ],[m
+ )[m
+ def test_operator_precedence(expression: str, expected: Decimal) -> None:[m
+[31m-    assert _eval(expression) == expected[m
+[32m+[m[32m    assert _calculate(expression) == expected[m
+ [m
+ [m
+ @pytest.mark.parametrize([m
+[36m@@ -57,7 +58,20 @@[m [mdef test_operator_precedence(expression: str, expected: Decimal) -> None:[m
+     ],[m
+ )[m
+ def test_parentheses(expression: str, expected: Decimal) -> None:[m
+[31m-    assert _eval(expression) == expected[m
+[32m+[m[32m    assert _calculate(expression) == expected[m
+[32m+[m
+[32m+[m
+[32m+[m[32m@pytest.mark.parametrize([m
+[32m+[m[32m    ("expression", "expected"),[m
+[32m+[m[32m    [[m
+[32m+[m[32m        ("10-3-2", Decimal("5")),[m
+[32m+[m[32m        ("8/4/2", Decimal("1")),[m
+[32m+[m[32m        ("20-5-3-2", Decimal("10")),[m
+[32m+[m[32m        ("100/2/5", Decimal("10")),[m
+[32m+[m[32m    ],[m
+[32m+[m[32m)[m
+[32m+[m[32mdef test_left_associativity(expression: str, expected: Decimal) -> None:[m
+[32m+[m[32m    assert _calculate(expression) == expected[m
+ [m
+ [m
+ @pytest.mark.parametrize([m
+[36m@@ -76,7 +90,7 @@[m [mdef test_parentheses(expression: str, expected: Decimal) -> None:[m
+     ],[m
+ )[m
+ def test_unary_operators(expression: str, expected: Decimal) -> None:[m
+[31m-    assert _eval(expression) == expected[m
+[32m+[m[32m    assert _calculate(expression) == expected[m
+ [m
+ [m
+ @pytest.mark.parametrize([m
+[36m@@ -94,18 +108,18 @@[m [mdef test_unary_operators(expression: str, expected: Decimal) -> None:[m
+     ],[m
+ )[m
+ def test_decimal_numbers(expression: str, expected: Decimal) -> None:[m
+[31m-    assert _eval(expression) == expected[m
+[32m+[m[32m    assert _calculate(expression) == expected[m
+ [m
+ [m
+ def test_decimal_result_type() -> None:[m
+     """The parser must return ``Decimal``, not ``float``."""[m
+[31m-    result = _eval("1+2")[m
+[32m+[m[32m    result = _calculate("1+2")[m
+     assert isinstance(result, Decimal)[m
+ [m
+ [m
+ def test_whitespace_tolerance() -> None:[m
+[31m-    assert _eval(" 1 + 2 * 3 ") == Decimal("7")[m
+[31m-    assert _eval("1+2") == _eval("  1  +  2  ")[m
+[32m+[m[32m    assert _calculate(" 1 + 2 * 3 ") == Decimal("7")[m
+[32m+[m[32m    assert _calculate("1+2") == _calculate("  1  +  2  ")[m
+ [m
+ [m
+ @pytest.mark.parametrize([m
+[36m@@ -119,12 +133,12 @@[m [mdef test_whitespace_tolerance() -> None:[m
+ )[m
+ def test_division_by_zero(expression: str) -> None:[m
+     with pytest.raises(DivisionByZeroError):[m
+[31m-        _eval(expression)[m
+[32m+[m[32m        _calculate(expression)[m
+ [m
+ [m
+ def test_division_by_zero_is_calculator_error() -> None:[m
+     with pytest.raises(CalculatorError):[m
+[31m-        _eval("1/0")[m
+[32m+[m[32m        _calculate("1/0")[m
+ [m
+ [m
+ @pytest.mark.parametrize([m
+[36m@@ -149,7 +163,6 @@[m [mdef test_division_by_zero_is_calculator_error() -> None:[m
+         "(1+2)(3+4)",[m
+         "+",[m
+         "-",[m
+[31m-        "()",[m
+         "( )",[m
+         "(+)",[m
+         "1+2+",[m
+[36m@@ -158,19 +171,19 @@[m [mdef test_division_by_zero_is_calculator_error() -> None:[m
+ )[m
+ def test_invalid_expressions(expression: str) -> None:[m
+     with pytest.raises(InvalidExpressionError):[m
+[31m-        _eval(expression)[m
+[32m+[m[32m        _calculate(expression)[m
+ [m
+ [m
+ def test_invalid_expression_is_calculator_error() -> None:[m
+     with pytest.raises(CalculatorError):[m
+[31m-        _eval("1+")[m
+[32m+[m[32m        _calculate("1+")[m
+ [m
+ [m
+ @pytest.mark.parametrize([m
+     "expression",[m
+     [[m
+[31m-        "__import__(\"os\")",[m
+[31m-        "open(\"file\")",[m
+[32m+[m[32m        '__import__("os")',[m
+[32m+[m[32m        'open("file")',[m
+         "1;2",[m
+         "1,2",[m
+         "1+2;print('x')",[m
+[36m@@ -178,39 +191,62 @@[m [mdef test_invalid_expression_is_calculator_error() -> None:[m
+         "lambda x: x",[m
+         "[1,2,3]",[m
+         "{1:2}",[m
+[31m-        "\"hello\"",[m
+[32m+[m[32m        '"hello"',[m
+         "'hello'",[m
+     ],[m
+ )[m
+ def test_code_like_strings_rejected(expression: str) -> None:[m
+     with pytest.raises(InvalidExpressionError):[m
+[31m-        _eval(expression)[m
+[32m+[m[32m        _calculate(expression)[m
+ [m
+ [m
+ @pytest.mark.parametrize("operator", ["**", "//", "%", "@", "&", "|", "^", "~"])[m
+ def test_unsupported_operators_rejected(operator: str) -> None:[m
+     with pytest.raises(InvalidExpressionError):[m
+[31m-        _eval(f"1{operator}2")[m
+[32m+[m[32m        _calculate(f"1{operator}2")[m
+ [m
+ [m
+ def test_result_is_consumed_fully_or_rejected() -> None:[m
+     """Trailing content after a complete expression must be rejected."""[m
+     with pytest.raises(InvalidExpressionError):[m
+[31m-        _eval("1+2 3")[m
+[32m+[m[32m        _calculate("1+2 3")[m
+[32m+[m[32m    with pytest.raises(InvalidExpressionError):[m
+[32m+[m[32m        _calculate("(1+2) 3")[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef test_non_string_input_rejected() -> None:[m
+[32m+[m[32m    """Non-string direct service input must not leak a Python ``TypeError``."""[m
+[32m+[m[32m    for value in [None, 42, 3.14, [], {}, object()]:[m
+[32m+[m[32m        with pytest.raises(InvalidExpressionError):[m
+[32m+[m[32m            _calculate(value)[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef test_expression_length_limit_constant_exposed() -> None:[m
+[32m+[m[32m    """The limit constant must match the database column width."""[m
+[32m+[m[32m    assert MAX_EXPRESSION_LENGTH == 1024[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef test_expression_longer_than_limit_rejected() -> None:[m
+[32m+[m[32m    long_expression = "1+" * (MAX_EXPRESSION_LENGTH // 2) + "1"[m
+[32m+[m[32m    if len(long_expression) <= MAX_EXPRESSION_LENGTH:[m
+[32m+[m[32m        long_expression += " " * (MAX_EXPRESSION_LENGTH + 1 - len(long_expression))[m
+[32m+[m[32m    assert len(long_expression) > MAX_EXPRESSION_LENGTH[m
+     with pytest.raises(InvalidExpressionError):[m
+[31m-        _eval("(1+2) 3")[m
+[32m+[m[32m        _calculate(long_expression)[m
+ [m
+ [m
+[31m-def test_none_input_rejected() -> None:[m
+[32m+[m[32mdef test_deeply_nested_expression_rejected_cleanly() -> None:[m
+[32m+[m[32m    """Deep nesting must not leak a Python ``RecursionError``."""[m
+[32m+[m[32m    depth = 400[m
+[32m+[m[32m    expression = "(" * depth + "1" + ")" * depth[m
+     with pytest.raises(InvalidExpressionError):[m
+[31m-        # type: ignore[arg-type][m
+[31m-        _eval(None)[m
+[32m+[m[32m        _calculate(expression)[m
+ [m
+ [m
+ def test_exception_messages_do_not_leak_python_internals() -> None:[m
+     """Error messages should be readable and not expose stack frames."""[m
+     try:[m
+[31m-        _eval("1+")[m
+[32m+[m[32m        _calculate("1+")[m
+     except InvalidExpressionError as exc:[m
+         assert "Traceback" not in str(exc)[m
+     else:[m

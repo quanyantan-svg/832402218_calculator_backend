@@ -1,11 +1,22 @@
 # Code Style
 
-This project follows PEP 8 with the conventions listed below.
+The backend code standard is based on:
+
+**PEP 8 — Style Guide for Python Code**
+
+Source: https://peps.python.org/pep-0008/
+
+This document lists the conventions used in this project. Where a project
+convention intentionally deviates from the PEP 8 default (for example the
+100-character line length described below), it is noted as such and is
+not a redefinition of the standard itself.
 
 ## Formatting
 
 - 4 spaces per indentation level, no tabs.
-- Maximum line length of 100 characters where reasonable.
+- Maximum line length of **100 characters**. This is a practical project
+  convention that is more permissive than the PEP 8 default of 79; it is
+  not the PEP 8 default.
 - One statement per line.
 - Two blank lines between top-level definitions, one blank line between
   methods inside a class.
@@ -34,6 +45,10 @@ This project follows PEP 8 with the conventions listed below.
 - Logging is done through the `logging` module, not `print`.
 - Sensitive values such as database passwords are never logged or
   returned in HTTP responses.
+- Domain-level errors are raised through dedicated exception types in
+  `app/core/exceptions.py` so that no internal Python exception type
+  (such as `TypeError`, `RecursionError`, or `decimal.InvalidOperation`)
+  leaks to API callers.
 
 ## Docstrings
 
