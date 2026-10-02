@@ -10,7 +10,8 @@ history retrieval, and deletion of an individual history record.
 
 ## Tech Stack
 
-- Python 3.13
+- Python 3.13 (development)
+- Python 3.12 (production deployment)
 - FastAPI 0.142
 - SQLAlchemy 2.x (synchronous)
 - PyMySQL driver
@@ -76,10 +77,20 @@ Copy `.env.example` to `.env` and fill in the local MySQL credentials. The
 
 ## Install
 
+Local Windows development:
+
 ```
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+Linux production note:
+
+```
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
 ## Run
@@ -336,12 +347,134 @@ The local Vue / Vite development origins are allowed:
 - `http://localhost:5173`
 - `http://127.0.0.1:5173`
 
+In production the deployed frontend and API are served through the same
+public Nginx origin, so production browser requests use the Nginx
+endpoint rather than calling `127.0.0.1:8000` directly.
+
 ## Health Check
 
 `GET /health` runs a lightweight `SELECT 1` against the database. The
 response reports the application name, environment, and whether the
 database is reachable. Database credentials and connection details are
 never exposed in the response body.
+
+## Production Deployment
+
+The backend is deployed on Tencent Cloud Lighthouse (Ubuntu) and
+managed as a systemd service. Nginx is the public-facing reverse proxy;
+FastAPI is bound to the loopback interface only and is not exposed to
+the public network.
+
+### Public Deployment
+
+Public calculator URL:
+
+- `http://129.204.51.149:8082`
+
+Users do not access the FastAPI port `8000` directly. Nginx accepts
+public traffic and reverse-proxies API requests to the local FastAPI
+instance.
+
+### Production Architecture
+
+```
+Internet
+   |
+   v
+Nginx  :8082   (public)
+   |
+   |-- /api/*  --> FastAPI  127.0.0.1:8000
+   |-- /health --> FastAPI  127.0.0.1:8000
+   |
+   '-- /       --> static frontend at /var/www/calculator
+
+FastAPI  127.0.0.1:8000
+   |
+   v
+MySQL  127.0.0.1:3306  (database: calculator_db)
+```
+
+The Vue frontend is also served by Nginx from
+`/var/www/calculator`. The backend working directory on the server is
+`/opt/calculator/backend`.
+
+### Production Configuration
+
+The production configuration is loaded from the server-side `.env`
+file (not committed to Git). The conceptual keys are:
+
+```
+APP_ENV=production
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=calculator_db
+```
+
+`DB_USER` and `DB_PASSWORD` are stored in the server-side `.env` and
+are not committed to this repository. No real credentials appear in
+this README or in any tracked file.
+
+### systemd
+
+The backend is managed by the systemd unit:
+
+- `calculator-backend.service`
+
+The effective service command is:
+
+```
+/opt/calculator/backend/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Notes:
+
+- The service is enabled at boot.
+- `Restart=on-failure` is configured so the backend restarts after
+  crashes.
+- Backend startup after a server reboot has been verified.
+
+Useful administrative commands:
+
+```
+sudo systemctl status calculator-backend
+sudo systemctl restart calculator-backend
+sudo journalctl -u calculator-backend -n 100 --no-pager
+```
+
+### Nginx / Network Boundary
+
+- Nginx public port for this project: `8082`.
+- FastAPI port `8000` is loopback-only (`127.0.0.1`).
+- MySQL port `3306` is local-only and is not intentionally exposed to
+  the public network.
+- The Tencent Cloud Lighthouse firewall allows the project's public
+  web port (`8082`).
+- Application and database internal ports are not intended for direct
+  public access.
+
+### Production Verification
+
+The following facts were verified against the live deployment:
+
+- `GET /health` returns `status: healthy`.
+- `app.env` is reported as `production`.
+- `database.connected` is `true`.
+- `POST /api/calculate` works through the public deployment.
+- `GET /api/history` works through the public deployment.
+- `DELETE /api/history/{id}` works through the public deployment.
+- MySQL persistence survives backend and server restart.
+- systemd, Nginx, and MySQL recovered after a server reboot.
+- The deployed calculator remained usable after restart.
+
+HTTPS is not configured for this deployment, and no domain name is
+attached to the public IP at this stage.
+
+## Security
+
+Production secrets (database credentials, SSH keys, tokens, and the
+full `.env` contents) are stored only on the server and are not
+committed to this repository. No real credentials appear in this
+README, in `.env.example`, or in any tracked source file.
 
 ## Testing
 
