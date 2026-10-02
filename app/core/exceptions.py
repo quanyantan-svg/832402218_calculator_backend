@@ -11,3 +11,7 @@ class InvalidExpressionError(CalculatorError):
 
 class DivisionByZeroError(CalculatorError):
     """Raised when evaluation requires division by zero."""
+
+
+class PersistenceError(CalculatorError):
+    """Raised when a calculation result cannot be persisted to storage."""

@@ -3,9 +3,9 @@
 Backend service for the Front-End and Back-End Separation Calculator System.
 
 This repository provides the FastAPI application skeleton, the MySQL
-connection layer, and the safe mathematical expression parser that powers
-calculation. The `/api/calculate`, `/api/history`, and `/api/history/{id}`
-endpoints are scheduled for a later phase.
+connection layer, the safe mathematical expression parser, and the
+calculation API. The history-query and history-delete endpoints are
+scheduled for a later phase.
 
 ## Tech Stack
 
@@ -35,17 +35,24 @@ endpoints are scheduled for a later phase.
 │   │   ├── __init__.py
 │   │   └── calculation_history.py
 │   ├── schemas/
-│   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   └── calculator.py
 │   ├── services/
 │   │   ├── __init__.py
+│   │   ├── calculator_service.py
 │   │   └── expression_parser.py
 │   └── api/
 │       ├── __init__.py
 │       └── routes/
-│           └── __init__.py
+│           ├── __init__.py
+│           └── calculator.py
 ├── tests/
 │   ├── __init__.py
-│   └── test_expression_parser.py
+│   ├── conftest.py
+│   ├── test_expression_parser.py
+│   ├── test_decimal_normalization.py
+│   ├── test_calculator_service.py
+│   └── test_calculate_api.py
 ├── .env.example
 ├── .gitignore
 ├── codestyle.md
@@ -81,6 +88,10 @@ The Swagger UI is available at:
 The health endpoint:
 
 - http://127.0.0.1:8000/health
+
+The calculation endpoint:
+
+- `POST http://127.0.0.1:8000/api/calculate`
 
 ## Expression Parser
 
@@ -125,6 +136,59 @@ column. Inputs longer than the limit, deeply nested expressions, and
 non-string inputs are all rejected with `InvalidExpressionError` so that no
 internal Python exception leaks to the API layer.
 
+## Calculation API
+
+### `POST /api/calculate`
+
+The calculation endpoint accepts a JSON body, evaluates the expression on
+the backend, persists the result, and returns it as a JSON string.
+
+Request body:
+
+```
+{
+    "expression": "(1+2)*3"
+}
+```
+
+Successful response (`HTTP 200 OK`):
+
+```
+{
+    "success": true,
+    "expression": "(1+2)*3",
+    "result": "9"
+}
+```
+
+Error response for a bad expression or division by zero (`HTTP 400`):
+
+```
+{
+    "success": false,
+    "message": "division by zero"
+}
+```
+
+Server-error response (`HTTP 500`) when persistence fails:
+
+```
+{
+    "success": false,
+    "message": "Internal server error"
+}
+```
+
+### Behavior
+
+- The frontend never computes the final result; the backend does.
+- Every successful calculation is persisted as one row in
+  `calculation_history` before the API returns a successful response.
+- Invalid expressions and division-by-zero do not create any database row.
+- The `result` field is always a string so that exact decimal output (for
+  example `"0.3"` for `0.1 + 0.2`) survives transport without
+  floating-point conversion.
+
 ## Database
 
 The MySQL schema is created on application startup via
@@ -165,9 +229,7 @@ Run the full test suite:
 pytest -v
 ```
 
-Parser-specific tests live in `tests/test_expression_parser.py` and can be
-run directly:
-
-```
-pytest -v tests/test_expression_parser.py
-```
+Parser-specific tests live in `tests/test_expression_parser.py`. Service-
+and API-level tests use an in-memory SQLite database via a `get_db`
+dependency override so the automated suite does not require a running
+local MySQL instance.
