@@ -42,6 +42,10 @@ class CalculatorService:
     ) -> CalculationResult:
         """Parse, evaluate, and persist ``expression``.
 
+        The auto-increment primary key of the inserted row is populated by
+        ``commit()`` and remains accessible without an extra refresh
+        because the configured session uses ``expire_on_commit=False``.
+
         Raises:
             InvalidExpressionError: Propagated from the parser when the
                 input is not a valid expression. Nothing is persisted in
@@ -63,8 +67,6 @@ class CalculatorService:
             db.rollback()
             raise PersistenceError("failed to persist calculation") from exc
 
-        db.refresh(record)
-        assert record.id is not None
         return CalculationResult(
             expression=expression,
             result=normalized,

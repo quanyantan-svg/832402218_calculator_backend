@@ -12,6 +12,21 @@ from app.main import app
 from app.models.calculation_history import CalculationHistory
 
 
+def test_health_works_through_isolated_test_setup(client: TestClient) -> None:
+    """Regression test: ``/health`` must succeed under the isolated fixture.
+
+    The application lifespan and ``/health`` both read from
+    ``app.main.engine`` / ``app.main.SessionLocal``. The ``isolated_app``
+    fixture patches both to SQLite so this assertion proves MySQL is not
+    required for the automated suite.
+    """
+    response = client.get("/health")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "healthy"
+    assert body["database"]["connected"] is True
+
+
 @pytest.mark.parametrize(
     ("expression", "expected_result"),
     [
@@ -135,7 +150,7 @@ def test_calculate_invalid_does_not_persist_history(
 
 
 def test_calculate_persistence_failure_returns_server_error(
-    sqlite_session_factory,
+    isolated_test_client: TestClient,
 ) -> None:
     """A DB commit failure must not surface as a successful calculation."""
 
@@ -154,9 +169,6 @@ def test_calculate_persistence_failure_returns_server_error(
         def rollback(self) -> None:
             self.rollback_called = True
 
-        def refresh(self, _record: object) -> None:
-            pass
-
         def close(self) -> None:
             pass
 
@@ -166,13 +178,9 @@ def test_calculate_persistence_failure_returns_server_error(
         return failing
 
     app.dependency_overrides[get_db] = _override
-    try:
-        with TestClient(app) as test_client:
-            response = test_client.post(
-                "/api/calculate", json={"expression": "1+2"}
-            )
-    finally:
-        app.dependency_overrides.clear()
+    response = isolated_test_client.post(
+        "/api/calculate", json={"expression": "1+2"}
+    )
 
     assert response.status_code == 500
     body = response.json()
@@ -192,7 +200,7 @@ def test_calculate_response_does_not_leak_internal_details(client: TestClient) -
 
 
 def test_calculate_with_internal_db_error_does_not_leak_internal_details(
-    sqlite_session_factory,
+    isolated_test_client: TestClient,
 ) -> None:
     db = MagicMock(spec=Session)
     db.commit.side_effect = OperationalError(
@@ -205,13 +213,9 @@ def test_calculate_with_internal_db_error_does_not_leak_internal_details(
         return db
 
     app.dependency_overrides[get_db] = _override
-    try:
-        with TestClient(app) as test_client:
-            response = test_client.post(
-                "/api/calculate", json={"expression": "1+2"}
-            )
-    finally:
-        app.dependency_overrides.clear()
+    response = isolated_test_client.post(
+        "/api/calculate", json={"expression": "1+2"}
+    )
 
     assert response.status_code == 500
     body = response.json()

@@ -230,6 +230,8 @@ pytest -v
 ```
 
 Parser-specific tests live in `tests/test_expression_parser.py`. Service-
-and API-level tests use an in-memory SQLite database via a `get_db`
-dependency override so the automated suite does not require a running
-local MySQL instance.
+and API-level tests use an in-memory SQLite database that fully
+replaces the production MySQL engine for the duration of the test
+session (lifespan, ``/health``, and request handlers). The normal
+automated suite therefore does not require a running local MySQL
+instance.

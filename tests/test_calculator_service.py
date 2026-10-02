@@ -164,3 +164,59 @@ def test_unexpected_db_session_error_is_not_swallowed() -> None:
         service.calculate_and_persist(db, "1+2")  # type: ignore[arg-type]
 
     db.rollback.assert_called_once()
+
+
+def test_successful_commit_does_not_call_refresh(db_session: Session) -> None:
+    """After a successful commit the service must not perform an extra refresh."""
+    refresh_calls: list[object] = []
+
+    real_refresh = db_session.refresh
+
+    def _tracking_refresh(instance: object, *args: object, **kwargs: object) -> None:
+        refresh_calls.append(instance)
+        real_refresh(instance, *args, **kwargs)  # type: ignore[arg-type]
+
+    db_session.refresh = _tracking_refresh  # type: ignore[assignment]
+
+    service = CalculatorService()
+    result = service.calculate_and_persist(db_session, "1+2")
+
+    assert result.history_id > 0
+    assert refresh_calls == []
+
+
+def test_history_id_is_available_without_refresh(db_session: Session) -> None:
+    """The auto-increment id must be populated by commit alone."""
+    service = CalculatorService()
+    result = service.calculate_and_persist(db_session, "1+2")
+    assert isinstance(result.history_id, int)
+    assert result.history_id > 0
+    fetched = db_session.get(CalculationHistory, result.history_id)
+    assert fetched is not None
+
+
+def test_commit_failure_does_not_call_refresh() -> None:
+    """When commit raises, no extra refresh should be performed before raising."""
+
+    class _TrackingSession:
+        def __init__(self) -> None:
+            self.refresh_calls = 0
+
+        def add(self, _record: CalculationHistory) -> None:
+            pass
+
+        def commit(self) -> None:
+            raise OperationalError(
+                "INSERT ...", params=None, orig=Exception("db down")
+            )
+
+        def rollback(self) -> None:
+            pass
+
+    session = _TrackingSession()
+
+    service = CalculatorService()
+    with pytest.raises(PersistenceError):
+        service.calculate_and_persist(session, "1+2")  # type: ignore[arg-type]
+
+    assert session.refresh_calls == 0
