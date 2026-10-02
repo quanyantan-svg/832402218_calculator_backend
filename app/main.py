@@ -9,9 +9,11 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.routes.calculator import router as calculator_router
+from app.api.routes.history import router as history_router
 from app.core.config import get_settings
 from app.core.exceptions import (
     DivisionByZeroError,
+    HistoryReadError,
     InvalidExpressionError,
     PersistenceError,
 )
@@ -33,7 +35,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        version="0.2.0",
+        version="0.3.0",
         lifespan=lifespan,
     )
 
@@ -97,6 +99,21 @@ def create_app() -> FastAPI:
             content={"success": False, "message": "Internal server error"},
         )
 
+    @app.exception_handler(HistoryReadError)
+    async def _history_read_error_handler(
+        request: Request, exc: HistoryReadError
+    ) -> JSONResponse:
+        logger.error(
+            "History read failure on %s %s: %s",
+            request.method,
+            request.url.path,
+            exc.__class__.__name__,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"success": False, "message": "Internal server error"},
+        )
+
     @app.exception_handler(RequestValidationError)
     async def _request_validation_handler(
         request: Request, exc: RequestValidationError
@@ -107,6 +124,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(calculator_router, prefix="/api")
+    app.include_router(history_router, prefix="/api")
 
     return app
 

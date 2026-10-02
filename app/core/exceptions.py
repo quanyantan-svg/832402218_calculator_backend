@@ -15,3 +15,7 @@ class DivisionByZeroError(CalculatorError):
 
 class PersistenceError(CalculatorError):
     """Raised when a calculation result cannot be persisted to storage."""
+
+
+class HistoryReadError(CalculatorError):
+    """Raised when reading calculation history from storage fails."""

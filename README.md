@@ -3,9 +3,9 @@
 Backend service for the Front-End and Back-End Separation Calculator System.
 
 This repository provides the FastAPI application skeleton, the MySQL
-connection layer, the safe mathematical expression parser, and the
-calculation API. The history-query and history-delete endpoints are
-scheduled for a later phase.
+connection layer, the safe mathematical expression parser, the
+calculation API, and the calculation history API. History-deletion
+endpoints are scheduled for a later phase.
 
 ## Tech Stack
 
@@ -36,23 +36,28 @@ scheduled for a later phase.
 │   │   └── calculation_history.py
 │   ├── schemas/
 │   │   ├── __init__.py
-│   │   └── calculator.py
+│   │   ├── calculator.py
+│   │   └── history.py
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── calculator_service.py
-│   │   └── expression_parser.py
+│   │   ├── expression_parser.py
+│   │   └── history_service.py
 │   └── api/
 │       ├── __init__.py
 │       └── routes/
 │           ├── __init__.py
-│           └── calculator.py
+│           ├── calculator.py
+│           └── history.py
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py
 │   ├── test_expression_parser.py
 │   ├── test_decimal_normalization.py
 │   ├── test_calculator_service.py
-│   └── test_calculate_api.py
+│   ├── test_calculate_api.py
+│   ├── test_history_service.py
+│   └── test_history_api.py
 ├── .env.example
 ├── .gitignore
 ├── codestyle.md
@@ -85,13 +90,11 @@ The Swagger UI is available at:
 
 - http://127.0.0.1:8000/docs
 
-The health endpoint:
+The implemented endpoints:
 
-- http://127.0.0.1:8000/health
-
-The calculation endpoint:
-
+- `GET  http://127.0.0.1:8000/health`
 - `POST http://127.0.0.1:8000/api/calculate`
+- `GET  http://127.0.0.1:8000/api/history`
 
 ## Expression Parser
 
@@ -188,6 +191,66 @@ Server-error response (`HTTP 500`) when persistence fails:
 - The `result` field is always a string so that exact decimal output (for
   example `"0.3"` for `0.1 + 0.2`) survives transport without
   floating-point conversion.
+
+## History API
+
+### `GET /api/history`
+
+The history endpoint returns every successfully persisted calculation,
+ordered newest first. The response is read directly from the backend
+database; no in-memory or client-side cache is involved.
+
+Successful response (`HTTP 200 OK`) with at least one row:
+
+```
+{
+    "success": true,
+    "history": [
+        {
+            "id": 3,
+            "expression": "(1+2)*3",
+            "result": "9",
+            "created_at": "2026-10-02T17:30:00"
+        }
+    ]
+}
+```
+
+Empty response (`HTTP 200 OK`):
+
+```
+{
+    "success": true,
+    "history": []
+}
+```
+
+Server-error response (`HTTP 500`) on a database read failure:
+
+```
+{
+    "success": false,
+    "message": "Internal server error"
+}
+```
+
+### Behavior
+
+- Ordering is `ORDER BY calculation_history.id DESC` so the newest
+  calculation is always returned first. Ordering by primary key is used
+  rather than `created_at` because multiple rows may share the same
+  timestamp resolution.
+- Each item exposes `id`, `expression`, `result`, and `created_at`.
+- `created_at` is serialized as an ISO-8601 datetime string.
+- The endpoint is read-only. It does not insert, update, or delete rows
+  and does not commit a transaction.
+- The backend MySQL database is the source of truth. History committed
+  by `POST /api/calculate` remains visible to subsequent
+  `GET /api/history` requests — including requests issued from a fresh
+  HTTP client or after the application is restarted — because the rows
+  are persisted in MySQL, not in application memory.
+- Invalid calculations are never stored, so they never appear in
+  history.
 
 ## Database
 
